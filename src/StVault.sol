@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @notice Minimal Chainlink AggregatorV3 surface used for collateral pricing.
 interface IPriceFeed {
@@ -38,6 +39,10 @@ contract StVault is Ownable, ReentrancyGuard {
     uint256 public constant BPS_DENOM = 10_000;
     uint256 public borrowFeeBps = 50;           // 0.5% origination fee
 
+    /// @notice Max age (seconds) of a price-feed answer. Set per-feed to match
+    ///         the aggregator's heartbeat. [H-01 fix]
+    uint256 public stalenessThreshold = 3600;
+
     mapping(address => uint256) public collateralOf; // collateral token units
     mapping(address => uint256) public debtOf;       // borrow token units (principal + fees)
 
@@ -65,6 +70,11 @@ contract StVault is Ownable, ReentrancyGuard {
         borrowFeeBps = _bps;
     }
 
+    function setStalenessThreshold(uint256 _seconds) external onlyOwner {
+        require(_seconds > 0, "zero threshold");
+        stalenessThreshold = _seconds;
+    }
+
     /// @notice Liquidity provisioning for the borrow asset (owner-funded).
     function fund(uint256 amount) external onlyOwner {
         borrowToken.safeTransferFrom(msg.sender, address(this), amount);
@@ -82,18 +92,23 @@ contract StVault is Ownable, ReentrancyGuard {
     }
 
     /// @notice Withdraw the caller's entire collateral. Only callable when debt-free.
-    function withdrawCollateral() external {
+    /// @dev    [M-01 fix] nonReentrant guard + checks-effects-interactions:
+    ///         state is zeroed BEFORE the external token transfer, so a hook
+    ///         token (ERC777/1363) cannot re-enter against stale accounting.
+    function withdrawCollateral() external nonReentrant {
         require(debtOf[msg.sender] == 0, "outstanding debt");
         uint256 amount = collateralOf[msg.sender];
         require(amount > 0, "no collateral");
-        collateralToken.safeTransfer(msg.sender, amount);
-        collateralOf[msg.sender] = 0;
+        collateralOf[msg.sender] = 0;                       // effect first
+        collateralToken.safeTransfer(msg.sender, amount);   // interaction last
         emit CollateralWithdrawn(msg.sender, amount);
     }
 
     function borrow(uint256 amount) external nonReentrant {
         require(amount > 0, "zero amount");
-        uint256 fee = (amount / BPS_DENOM) * borrowFeeBps;
+        // [L-01 fix] multiply before divide via mulDiv; round up so the fee is
+        // never under-charged (protocol-favorable rounding).
+        uint256 fee = Math.mulDiv(amount, borrowFeeBps, BPS_DENOM, Math.Rounding.Ceil);
         debtOf[msg.sender] += amount + fee;
         require(_healthy(msg.sender), "exceeds max LTV");
         borrowToken.safeTransfer(msg.sender, amount);
@@ -113,9 +128,21 @@ contract StVault is Ownable, ReentrancyGuard {
     // ---------------------------------------------------------------------
 
     /// @notice USD value (scaled to 1e18) of a user's collateral.
+    /// @dev    [H-01 fix] validates the Chainlink answer: positive, from a
+    ///         completed round, and not older than `stalenessThreshold`.
+    ///         Scaling uses the feed's reported decimals instead of a hardcoded
+    ///         1e8. NOTE (L2): on Arbitrum/Optimism/Base, also gate on a
+    ///         sequencer-uptime feed (check startedAt + grace period) before
+    ///         trusting the price; omitted here as this demo targets L1.
     function collateralValueUsd(address user) public view returns (uint256) {
-        (, int256 answer, , , ) = priceFeed.latestRoundData();
-        return (collateralOf[user] * uint256(answer)) / 1e8;
+        (, int256 answer, , uint256 updatedAt, ) = priceFeed.latestRoundData();
+        require(answer > 0, "invalid price");
+        require(updatedAt != 0, "incomplete round");
+        require(block.timestamp - updatedAt <= stalenessThreshold, "stale price");
+        uint256 scale = 10 ** priceFeed.decimals();
+        // answer is guaranteed > 0 by the require above, so this cast cannot truncate.
+        // forge-lint: disable-next-line(unsafe-typecast)
+        return (collateralOf[user] * uint256(answer)) / scale;
     }
 
     /// @notice Maximum borrowable amount (borrow-token units) for a user.

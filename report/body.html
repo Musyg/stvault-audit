@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family:'Outfit'; src:url('fonts/Outfit-Regular.ttf'); font-weight:400; }
+  @font-face { font-family:'Outfit'; src:url('fonts/Outfit-Bold.ttf'); font-weight:700; }
+  @font-face { font-family:'Geist Mono'; src:url('fonts/GeistMono-Regular.ttf'); font-weight:400; }
+  @font-face { font-family:'Geist Mono'; src:url('fonts/GeistMono-Bold.ttf'); font-weight:700; }
+  @page { size: A4; }
+
+  html, body { margin:0; padding:0; }
+  body { font-family:'Outfit', sans-serif; color:#1a1f26; font-size:11pt; line-height:1.5; }
+
+  h1 { font-size:20pt; font-weight:700; color:#0f1216; margin:0 0 4px 0; }
+  h2 { font-size:15pt; font-weight:700; color:#0f1216; margin:26px 0 8px 0;
+       padding-bottom:5px; border-bottom:2px solid #e3e8ee; }
+  h3 { font-size:12.5pt; font-weight:700; color:#0f1216; margin:20px 0 6px 0; }
+  h3 .fid { color:#0081f2; }
+  p { margin:8px 0; }
+  a { color:#0081f2; text-decoration:none; }
+  .muted { color:#5b6571; }
+  .lead { color:#33404d; }
+
+  code, pre, .mono { font-family:'Geist Mono', monospace; }
+  code.inl { background:#f1f4f7; border:1px solid #e3e8ee; border-radius:4px;
+             padding:0 4px; font-size:9.5pt; color:#0b3a63; }
+  pre { background:#f5f7f9; border:1px solid #e3e8ee; border-left:3px solid #0081f2;
+        border-radius:5px; padding:11px 13px; font-size:8.6pt; line-height:1.45;
+        color:#243240; overflow:hidden; white-space:pre-wrap; word-break:break-word;
+        page-break-inside:avoid; }
+  pre .c { color:#8a97a5; }      /* comment */
+  pre .k { color:#0081f2; }      /* keyword/accent */
+  pre .bad { color:#c0392b; }    /* vulnerable line marker */
+
+  table { border-collapse:collapse; width:100%; margin:10px 0; font-size:10pt; }
+  th, td { text-align:left; padding:7px 9px; border-bottom:1px solid #e3e8ee; vertical-align:top; }
+  th { color:#5b6571; font-weight:700; font-size:9pt; text-transform:uppercase; letter-spacing:0.5px; }
+  .kv td:first-child { color:#5b6571; width:38%; white-space:nowrap; }
+  .kv td:last-child { font-family:'Geist Mono', monospace; font-size:9pt; word-break:break-all; }
+
+  .badge { display:inline-block; border-radius:11px; padding:1px 10px; font-size:8.5pt;
+           font-weight:700; color:#fff; letter-spacing:0.4px; }
+  .b-crit { background:#b3261e; }
+  .b-high { background:#e8590c; }
+  .b-med  { background:#c08a00; }
+  .b-low  { background:#1a93fe; }
+  .b-open { background:#e3e8ee; color:#3a4654; }
+
+  .sev { margin:6px 0 2px 0; font-size:10pt; }
+  .sev b { color:#0f1216; }
+
+  /* risk matrix */
+  table.matrix td, table.matrix th { text-align:center; border:1px solid #e3e8ee; padding:7px; font-size:9pt; }
+  .m-crit { background:#b3261e; color:#fff; font-weight:700; border-radius:0; }
+  .m-high { background:#e8590c; color:#fff; font-weight:700; }
+  .m-med  { background:#c08a00; color:#fff; font-weight:700; }
+  .m-low  { background:#1a93fe; color:#fff; font-weight:700; }
+  .m-hdr  { background:#0f1216; color:#fff; font-weight:700; }
+  .m-row  { background:#f5f7f9; color:#3a4654; font-weight:700; }
+
+  .note { background:#eaf4fe; border:1px solid #bfe0ff; border-left:3px solid #0081f2;
+          border-radius:5px; padding:10px 13px; font-size:10pt; color:#1d2a36; margin:12px 0; }
+  .finding { page-break-inside:avoid; }
+  ul { margin:8px 0; padding-left:18px; }
+  li { margin:3px 0; }
+  .smallcaps { color:#5b6571; font-size:9pt; text-transform:uppercase; letter-spacing:1px; font-weight:700; }
+</style>
+</head>
+<body>
+
+<h1>StVault - Security Review</h1>
+<p class="muted">Gilles Musy &middot; Demonstration engagement &middot; June 2026</p>
+
+
+<h2>1. Disclaimer</h2>
+<p>This document is a <b>demonstration security review</b> performed on <b>StVault</b>, a deliberately vulnerable sample contract authored by Gilles Musy for portfolio purposes. It is <b>not</b> a real client engagement: the contract was never deployed, holds no user funds, and the vulnerabilities it contains were intentionally introduced to illustrate review methodology, severity classification and proof-of-concept construction. All findings, proofs of concept and remediation guidance below are genuine analysis of the contract as written.</p>
+<p>A security review is a time-, resource- and expertise-bound effort to surface as many issues as possible. It cannot prove the absence of vulnerabilities. Subsequent reviews, a bug-bounty program and on-chain monitoring are recommended for any production deployment.</p>
+
+<h2>2. Risk Classification</h2>
+<p>Severity is derived from the impact of an issue and the likelihood of its occurrence.</p>
+<table class="matrix">
+  <tr>
+    <td class="m-hdr">Severity</td>
+    <td class="m-hdr">Impact: High</td>
+    <td class="m-hdr">Impact: Medium</td>
+    <td class="m-hdr">Impact: Low</td>
+  </tr>
+  <tr>
+    <td class="m-row">Likelihood: High</td>
+    <td class="m-crit">Critical</td>
+    <td class="m-high">High</td>
+    <td class="m-med">Medium</td>
+  </tr>
+  <tr>
+    <td class="m-row">Likelihood: Medium</td>
+    <td class="m-high">High</td>
+    <td class="m-med">Medium</td>
+    <td class="m-low">Low</td>
+  </tr>
+  <tr>
+    <td class="m-row">Likelihood: Low</td>
+    <td class="m-med">Medium</td>
+    <td class="m-low">Low</td>
+    <td class="m-low">Low</td>
+  </tr>
+</table>
+<p class="smallcaps">Impact</p>
+<ul>
+  <li><b>High</b> - significant loss of protocol assets or significant harm to a group of users.</li>
+  <li><b>Medium</b> - moderate loss or moderate harm to a group of users.</li>
+  <li><b>Low</b> - minor loss or harm to a small group of users.</li>
+</ul>
+<p class="smallcaps">Likelihood</p>
+<ul>
+  <li><b>High</b> - practical under realistic on-chain conditions at low attacker cost.</li>
+  <li><b>Medium</b> - conditionally incentivized but still plausible.</li>
+  <li><b>Low</b> - requires unlikely assumptions or significant attacker stake.</li>
+</ul>
+
+<h2>3. About StVault</h2>
+<p>StVault is a collateralized borrowing vault. Users deposit a volatile collateral token and borrow a stable asset against it up to a fixed 75% loan-to-value ratio. Collateral is priced in USD through a Chainlink-style price feed. The contract exposes deposit, borrow, repay and collateral-withdrawal flows, with an owner-funded liquidity pool for the borrow asset.</p>
+
+<h2>4. Executive Summary</h2>
+<p>A time-boxed review of the <code class="inl">StVault</code> contract was performed by Gilles Musy. The review combined manual analysis with a Foundry test-driven proof-of-concept suite. <b>Three issues</b> were identified: one High, one Medium and one Low. Each is accompanied by a passing PoC that demonstrates and quantifies the impact.</p>
+
+<table class="kv">
+  <tr><td>Project</td><td>StVault (demonstration target)</td></tr>
+  <tr><td>Type</td><td>Collateralized borrowing vault</td></tr>
+  <tr><td>Language</td><td>Solidity ^0.8.20</td></tr>
+  <tr><td>Scope</td><td>src/StVault.sol</td></tr>
+  <tr><td>Review commit</td><td>6e0fc095b1a489fb09fe056969151c4c45771a93</td></tr>
+  <tr><td>Methodology</td><td>Manual review &middot; Foundry PoC &middot; forge lint</td></tr>
+  <tr><td>Timeline</td><td>June 2026</td></tr>
+</table>
+
+<h2>5. Findings</h2>
+<table>
+  <tr><th>Severity</th><th>Count</th></tr>
+  <tr><td><span class="badge b-high">High</span></td><td>1</td></tr>
+  <tr><td><span class="badge b-med">Medium</span></td><td>1</td></tr>
+  <tr><td><span class="badge b-low">Low</span></td><td>1</td></tr>
+  <tr><td><b>Total</b></td><td><b>3</b></td></tr>
+</table>
+
+<table>
+  <tr><th>ID</th><th>Title</th><th>Severity</th><th>Status</th></tr>
+  <tr><td class="mono">H-01</td><td>Collateral price feed consumed without staleness or sign validation</td><td><span class="badge b-high">High</span></td><td><span class="badge b-open">Open</span></td></tr>
+  <tr><td class="mono">M-01</td><td>Reentrancy in withdrawCollateral via collateral-token transfer hook</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-open">Open</span></td></tr>
+  <tr><td class="mono">L-01</td><td>Origination fee truncated by division before multiplication</td><td><span class="badge b-low">Low</span></td><td><span class="badge b-open">Open</span></td></tr>
+</table>
+
+<div class="finding">
+<h3><span class="fid">[H-01]</span> Collateral price feed consumed without staleness or sign validation</h3>
+<p class="sev"><b>Impact:</b> High &nbsp;&middot;&nbsp; <b>Likelihood:</b> Medium &nbsp;&rarr;&nbsp; <span class="badge b-high">High</span></p>
+
+<p><b>Description.</b> <code class="inl">collateralValueUsd()</code> reads <code class="inl">latestRoundData()</code> and uses only the <code class="inl">answer</code> field. It never checks <code class="inl">updatedAt</code> against a freshness window, never requires <code class="inl">answer &gt; 0</code>, and hardcodes the feed scale to <code class="inl">1e8</code> instead of reading <code class="inl">priceFeed.decimals()</code>.</p>
+<pre><span class="c">// no updatedAt check, no answer &gt; 0 check, scale hardcoded</span>
+function collateralValueUsd(address user) public view returns (uint256) {
+    (, int256 answer, , , ) = priceFeed.latestRoundData();
+<span class="bad">    return (collateralOf[user] * uint256(answer)) / 1e8;</span>
+}</pre>
+<p>On an L2, a sequencer outage or a frozen / last-known feed value leaves the vault pricing collateral from data that no longer reflects the market. A borrower opens a position against a stale-but-favorable price; once the true price is reflected, the position is undercollateralized and the shortfall is borne by the protocol. A non-positive <code class="inl">answer</code> is likewise accepted, and a hardcoded scale silently misprices any feed not reporting 8 decimals.</p>
+
+<p><b>Impact.</b> In the PoC, a borrower deposits 10 collateral units and borrows 14,900 of the stable asset while the feed reports a 14-day-old price of $2,000. Once the live price ($100) is reflected, the position is underwater by <b>~13,974</b> units of the borrow asset - a direct, unrecoverable loss to the borrow-asset pool. The loss scales to the full pool for a sufficiently capitalized actor.</p>
+
+<p><b>Proof of concept.</b> <code class="inl">test_H01_StaleOracle_DrainsPool</code> (passing). The control test <code class="inl">test_Control_FreshOracle_BoundsBorrow</code> shows the identical borrow reverts under a fresh, correct price - isolating feed handling as the sole cause.</p>
+
+<p><b>Recommendation.</b> Validate every read: require <code class="inl">updatedAt</code> within a per-feed staleness window aligned to the feed heartbeat; require <code class="inl">answer &gt; 0</code>; derive the scale from <code class="inl">priceFeed.decimals()</code>. On L2, gate operations on a Chainlink sequencer-uptime feed (using <code class="inl">startedAt</code> plus a grace period). Revert cleanly when any check fails.</p>
+</div>
+
+<div class="finding">
+<h3><span class="fid">[M-01]</span> Reentrancy in withdrawCollateral via collateral-token transfer hook</h3>
+<p class="sev"><b>Impact:</b> High &nbsp;&middot;&nbsp; <b>Likelihood:</b> Low &nbsp;&rarr;&nbsp; <span class="badge b-med">Medium</span></p>
+
+<p><b>Description.</b> <code class="inl">withdrawCollateral()</code> transfers collateral out <i>before</i> zeroing <code class="inl">collateralOf[msg.sender]</code>, and is the only state-changing user entry point not guarded by <code class="inl">nonReentrant</code>.</p>
+<pre>function withdrawCollateral() external {
+    require(debtOf[msg.sender] == 0, "outstanding debt");
+    uint256 amount = collateralOf[msg.sender];
+    require(amount &gt; 0, "no collateral");
+<span class="bad">    collateralToken.safeTransfer(msg.sender, amount); // external call first</span>
+    collateralOf[msg.sender] = 0;                       // state cleared after
+}</pre>
+<p>If the collateral token invokes a recipient callback on transfer (ERC-777 / ERC-1363, or any token with transfer hooks), the caller re-enters <code class="inl">withdrawCollateral()</code> while the recorded balance is still non-zero, withdrawing it more than once.</p>
+
+<p><b>Impact.</b> PoC: the attacker deposits 10 collateral units, re-enters once, and exits with 20 - the second 10 belonging to another depositor. Vault collateral reaches zero while the victim's accounting still shows a 10-unit credit they can no longer redeem. Loss bound: the entire collateral pool.</p>
+
+<div class="note"><b>Severity note.</b> Set to Medium because exploitation requires a collateral asset with transfer callbacks. It rises to <b>High</b> if such assets (ERC-777 / ERC-1363 / hook tokens) are within the intended collateral scope.</div>
+
+<p><b>Proof of concept.</b> <code class="inl">test_M01_Reentrancy_DrainsCollateral</code> (passing).</p>
+
+<p><b>Recommendation.</b> Apply checks-effects-interactions - zero <code class="inl">collateralOf</code> before the external transfer - and add <code class="inl">nonReentrant</code> to <code class="inl">withdrawCollateral()</code> for defense in depth.</p>
+</div>
+
+<div class="finding">
+<h3><span class="fid">[L-01]</span> Origination fee truncated by division before multiplication</h3>
+<p class="sev"><b>Impact:</b> Low &nbsp;&middot;&nbsp; <b>Likelihood:</b> Medium &nbsp;&rarr;&nbsp; <span class="badge b-low">Low</span></p>
+
+<p><b>Description.</b> <code class="inl">borrow()</code> computes the origination fee dividing before multiplying:</p>
+<pre><span class="bad">uint256 fee = (amount / BPS_DENOM) * borrowFeeBps;</span></pre>
+<p>The intermediate quotient is truncated, so any <code class="inl">amount</code> not divisible by <code class="inl">BPS_DENOM</code> yields a fee below the intended <code class="inl">amount * borrowFeeBps / BPS_DENOM</code>.</p>
+
+<p><b>Impact.</b> The PoC borrows a non-round amount and is charged <b>49 wei</b> less than the correct fee (charged <code class="inl">1e16</code>, correct <code class="inl">1e16 + 49</code>). Per-transaction loss is bounded by <code class="inl">(BPS_DENOM-1) * borrowFeeBps / BPS_DENOM</code> and is economically negligible, but it is a systematic under-collection of protocol revenue.</p>
+
+<p><b>Proof of concept.</b> <code class="inl">test_L01_FeeRounding_UnderCharged</code> (passing).</p>
+
+<p><b>Recommendation.</b> Multiply before dividing, or use <code class="inl">Math.mulDiv(amount, borrowFeeBps, BPS_DENOM)</code> with an explicit rounding direction.</p>
+</div>
+
+<h2>6. Reproduction</h2>
+<p>All findings are reproducible from the reviewed commit:</p>
+<pre>git checkout 6e0fc09
+forge install foundry-rs/forge-std
+forge install OpenZeppelin/openzeppelin-contracts@v5.1.0
+forge test -vv</pre>
+<p class="muted" style="font-size:9pt; margin-top:18px;">This demonstration review was prepared by Gilles Musy. The StVault contract is an intentionally vulnerable artifact and must not be deployed. © 2026 Gilles Musy.</p>
+
+</body>
+</html>
