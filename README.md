@@ -1,5 +1,7 @@
 # StVault - Demonstration Security Review
 
+![tests](https://github.com/Musyg/stvault-audit/actions/workflows/ci.yml/badge.svg)
+
 A self-contained **demonstration** of a smart-contract security review: a deliberately
 vulnerable lending vault, the real vulnerabilities it contains - each proven with a
 passing [Foundry](https://book.getfoundry.sh) proof-of-concept - and a `fixed` branch

@@ -1,0 +1,30 @@
+name: tests
+
+on:
+  push:
+    branches: [master, fixed]
+  pull_request:
+
+jobs:
+  forge-test:
+    name: forge test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: [master, fixed]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Test ${{ matrix.branch }}
+        run: |
+          git checkout ${{ matrix.branch }}
+          git submodule update --init --recursive
+          forge test -vvv
