@@ -136,27 +136,27 @@ The PoC borrows a non-round amount and is charged 49 wei less than the correct f
 
 Multiply before dividing, or use `Math.mulDiv(amount, borrowFeeBps, BPS_DENOM)` with an explicit rounding direction.
 
-## Informational, Gas & Non-Critical
+## Informational & Gas
 
 ## I-01, Floating pragma (Informational)
 
-`pragma solidity ^0.8.20;` (L2) leaves the compiler version unpinned. A production deployment should pin an exact version so the deployed bytecode is reproducible and not silently recompiled under a newer compiler.
+The contract uses a floating pragma. Pin an exact compiler version for production so the deployed bytecode is reproducible.
 
-## N-01, Admin actions emit no events (Non-Critical)
+## I-02, Admin functions emit no events (Informational)
 
-`setPriceFeed` and `setBorrowFee` (L59-66) change security-critical parameters without emitting events, leaving off-chain monitoring blind to a feed swap or a fee change. Emit a dedicated event in each setter.
+Administrative setters change critical configuration without emitting events, leaving privileged actions untraceable off-chain. Emit an event on every admin state change.
 
-## N-02, setPriceFeed accepts the zero address (Non-Critical)
+## I-03, setPriceFeed does not check for the zero address (Informational)
 
-`setPriceFeed` (L59-61) does not check `_feed != address(0)`. Setting the feed to the zero address bricks pricing and every borrow and health computation. Add a zero-address check.
+`setPriceFeed` accepts any address, including `address(0)`. A zero or wrong feed would break price reads. Validate the feed address on update.
 
-## I-02, Token decimals assumed, not enforced (Informational)
+## I-04, Share and asset decimals are assumed equal (Informational)
 
-Collateral and borrow tokens are documented as 18-decimals (L33-34) but this is never enforced; combined with the hardcoded `1e8` feed scale (see H-01) the vault silently misprices any non-conforming token. Validate `decimals()` at construction or document the constraint as a hard requirement.
+The conversion logic assumes the share and underlying asset share the same decimals. Document this assumption or normalise explicitly so an asset with different decimals cannot silently skew accounting.
 
 ## G-01, require strings cost more than custom errors (Gas)
 
-The `require` reason strings throughout the contract cost more to deploy and to revert with than custom errors. On Solidity 0.8.20, replace them with `error` declarations and `revert CustomError()`.
+The `require` reason strings are more expensive to deploy and revert with than custom errors. Replace them with `error` declarations and `revert`.
 
 ## Reproduction
 
